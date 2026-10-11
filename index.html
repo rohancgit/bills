@@ -95,6 +95,9 @@
       </div>
       <label>Bill amount (₹)</label>
       <input name="amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+      <label>Transport</label>
+      <input name="transport" list="transports" placeholder="e.g. Shree Transport">
+      <datalist id="transports"></datalist>
       <label>Upload bill PDF or photo *</label>
       <input name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" required>
       <p class="muted">Use a clear PDF or photo. Keep uploads under 8 MB.</p>
@@ -109,6 +112,8 @@
     <input id="sVendor" list="vendors" placeholder="All vendors">
     <label>Bill number</label>
     <input id="sNumber" placeholder="Enter bill number">
+    <label>Transport</label>
+    <input id="sTransport" list="transports" placeholder="All transports">
     <div class="grid">
       <div><label>From date</label><input id="sFrom" type="date"></div>
       <div><label>To date</label><input id="sTo" type="date"></div>
@@ -133,8 +138,8 @@
 
 <script>
   // ====== EDIT THESE TWO LINES ======
-  const API_URL='https://script.google.com/macros/s/AKfycbxnxu91IYFax0JomeowWlehGA7vgAi4hGomeVYl9yJ8EdTup_U5SzsdqoHnA0mqwx0/exec';
-  const CLIENT_ID='383377902484-8bl3nd5t91ipept85ngllmakud5jp2sd.apps.googleusercontent.com';
+  const API_URL='PASTE_WEB_APP_URL_HERE';
+  const CLIENT_ID='PASTE_GOOGLE_CLIENT_ID_HERE';
   // ===================================
   let idToken=localStorage.getItem('rb_token')||'';
 
@@ -172,7 +177,7 @@
     document.getElementById('loginMsg').textContent='';
     startApp();
   }
-  function startApp(){showPage('home');loadVendors();}
+  function startApp(){showPage('home');loadVendors();loadTransports();}
   function initAuth(){
     if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
     if(tokenOk()){document.getElementById('login').classList.add('hidden');startApp();}
@@ -204,7 +209,7 @@
 
   function billRow(r,withDelete){
     return '<div class="bill"><div><b>'+escapeHtml(r.vendor)+'</b>'+
-      '<div class="sub">'+escapeHtml((r.number?'No. '+r.number:'No number')+' · '+r.date)+'</div></div>'+
+      '<div class="sub">'+escapeHtml((r.number?'No. '+r.number:'No number')+' · '+r.date+(r.transport?' · 🚚 '+r.transport:''))+'</div></div>'+
       '<div class="amt">'+inr(r.amount)+'</div>'+
       '<div class="acts"><a class="btn secondary small" href="'+escapeHtml(r.url)+'" target="_blank" rel="noopener">Open bill</a>'+
       (withDelete?'<button class="danger small" data-id="'+escapeHtml(r.id)+'" data-label="'+
@@ -222,6 +227,13 @@
       box.innerHTML=s.recent.length?s.recent.map(r=>billRow(r,false)).join(''):
         '<p class="muted">No bills yet. Tap "Add New Bill" to save your first one.</p>';
     }).withFailureHandler(showError).getHomeSummary();
+  }
+
+  function loadTransports(){
+    gsr().withSuccessHandler(list=>{
+      document.getElementById('transports').innerHTML=list.map(v=>
+        '<option value="'+escapeHtml(v)+'"></option>').join('');
+    }).withFailureHandler(showError).getTransports();
   }
 
   function loadVendors(){
@@ -258,13 +270,14 @@
         billNumber:form.billNumber.value.trim(),
         billDate:form.billDate.value,
         amount:form.amount.value,
+        transport:form.transport.value.trim(),
         fileName:file.name,
         mimeType:file.type || 'application/octet-stream',
         fileData:base64
       };
       gsr().withSuccessHandler(msg=>{
         status.textContent='✓ '+msg;
-        form.reset();loadVendors();done();
+        form.reset();loadVendors();loadTransports();done();
       }).withFailureHandler(err=>{
         status.textContent='Could not save: '+err.message;
         done();
@@ -287,13 +300,14 @@
       .searchBills({
         vendor:document.getElementById('sVendor').value.trim(),
         number:document.getElementById('sNumber').value.trim(),
+        transport:document.getElementById('sTransport').value.trim(),
         from:document.getElementById('sFrom').value,
         to:document.getElementById('sTo').value
       });
   }
 
   function clearSearch(){
-    ['sVendor','sNumber','sFrom','sTo'].forEach(id=>document.getElementById(id).value='');
+    ['sVendor','sNumber','sTransport','sFrom','sTo'].forEach(id=>document.getElementById(id).value='');
     searchBills();
   }
 
@@ -305,7 +319,7 @@
     if(!ok) return;
     btn.disabled=true; btn.textContent='Deleting...';
     gsr().withSuccessHandler(msg=>{
-      loadVendors(); searchBills(msg);
+      loadVendors(); loadTransports(); searchBills(msg);
     }).withFailureHandler(err=>{
       btn.disabled=false; btn.textContent='Delete';
       document.getElementById('searchStatus').textContent='Could not delete: '+err.message;
